@@ -1,0 +1,64 @@
+version: '2'
+services:
+
+  proxy:
+    hostname: ${MY_HOSTNAME}
+    image: nginx:alpine
+    networks:
+      - front-end
+      - back-end
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - $PWD/etc/letsencrypt:/etc/letsencrypt:ro
+      - $PWD/etc/nginx.template:/etc/nginx/nginx.template:ro
+      - $PWD/img:/www/data/img:ro
+    restart: always
+    command: 'sh -c "cat /etc/nginx/nginx.template | sed \"s/__MY_DOMAIN_NAME__/${MY_HOSTNAME}/\" > /etc/nginx/nginx.conf && nginx -g \"daemon off;\""'
+
+  saml:
+    hostname: ${MY_HOSTNAME}
+    build:
+      context: saml
+      dockerfile: Dockerfile
+    networks:
+      - back-end
+    ports:
+      - "443"
+    environment:
+      SERVER_NAME: ${MY_HOSTNAME}
+      SHIBBOLETH_SP_ENTITY_ID: ${MY_ENTITY_ID}
+      SHIBBOLETH_SP_CERT: /run/sp/sp-cert.pem
+      SHIBBOLETH_SP_PRIVKEY: /run/sp/sp-key.pem
+      SHIBBOLETH_SP_METADATA_PROVIDER_XML_FILE: /run/sp/sp-metadata-myvelocity.xml
+#     HTTPS_CERT_FILE: /etc/letsencrypt/live/${MY_HOSTNAME}/fullchain.pem
+#     HTTPS_PRIVKEY_FILE: /etc/letsencrypt/live/${MY_HOSTNAME}/privkey.pem
+    volumes:
+      - $PWD/etc/sp:/run/sp:ro
+      - $PWD/etc/sp/myvelocity-shibboleth2.xml:/etc/shibboleth/shibboleth2.xml:ro
+      - $PWD/etc/sp/attribute-map.xml:/etc/shibboleth/attribute-map.xml:ro
+      - $PWD/etc/letsencrypt:/etc/letsencrypt:ro
+      - $PWD/etc/idp/surfconext.test/certificate.pem:/opt/shibboleth-sp/etc/shibboleth/surfconext.pem:ro
+
+  jupyter:
+    build:
+      context: $PWD/jupyterhub
+      dockerfile: Dockerfile.jupyterhub
+      args:
+        - JUPYTERHUB_VERSION=${MY_JUPYTERHUB_VERSION}
+    networks:
+      - back-end
+    ports:
+      - "8000"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:rw"
+      - $PWD/etc/jupyterhub:/srv/jupyterhub
+      - $PWD/var/jupyter:/volumes/jupyter
+    command: jupyterhub
+
+networks:
+  front-end:
+    driver: bridge
+  back-end:
+    driver: bridge
