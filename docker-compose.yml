@@ -32,8 +32,6 @@ services:
       SHIBBOLETH_SP_CERT: /run/sp/sp-cert.pem
       SHIBBOLETH_SP_PRIVKEY: /run/sp/sp-key.pem
       SHIBBOLETH_SP_METADATA_PROVIDER_XML_FILE: /run/sp/sp-metadata-myvelocity.xml
-#     HTTPS_CERT_FILE: /etc/letsencrypt/live/${MY_HOSTNAME}/fullchain.pem
-#     HTTPS_PRIVKEY_FILE: /etc/letsencrypt/live/${MY_HOSTNAME}/privkey.pem
     volumes:
       - $PWD/etc/sp:/run/sp:ro
       - $PWD/etc/sp/myvelocity-shibboleth2.xml:/etc/shibboleth/shibboleth2.xml:ro

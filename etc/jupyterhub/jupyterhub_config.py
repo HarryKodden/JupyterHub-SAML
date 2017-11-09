@@ -2,11 +2,6 @@ import os
 
 # Google OAuth
 
-# GitHub OAuth
-OAUTH_CLIENT_ID="15fdebb8190771b58fe9"
-OAUTH_CLIENT_SECRET="493f62484d0f939c80426bc2a71dfae327f0fdc7"
-OAUTH_CALLBACK_URL="https://www.myvelocity.nl/jupyter/hub/oauth_callback"
-
 # Name of Docker machine
 DOCKER_MACHINE_NAME="jupyter"
 
@@ -73,39 +68,16 @@ c.DockerSpawner.extra_create_kwargs.update({ 'volume_driver': 'local' })
 # Remove containers once they are stopped
 c.DockerSpawner.remove_containers = True
 # For debugging arguments passed to spawned containers
-c.DockerSpawner.debug = True
+c.DockerSpawner.debug = False
 
 c.DockerSpawner.image = DOCKER_NOTEBOOK_IMAGE
 
 spawn_cmd = os.environ.get('DOCKER_SPAWN_CMD', "start-singleuser.sh")
 c.DockerSpawner.extra_create_kwargs.update({ 'command': spawn_cmd })
 
-#c.DockerSpawner.network_name = network_name
-#c.DockerSpawner.extra_start_kwargs = { 'network_mode': network_name }
-#c.DockerSpawner.hub_ip_connect = 'jupyterhub'
-#c.DockerSpawner.host_ip = "0.0.0.0"
-
-#c.JupyterHub.authenticator_class = 'oauthenticator.GitHubOAuthenticator'
-#c.GitHubOAuthenticator.client_id = OAUTH_CLIENT_ID
-#c.GitHubOAuthenticator.client_secret = OAUTH_CLIENT_SECRET
-#c.GitHubOAuthenticator.oauth_callback_url = OAUTH_CALLBACK_URL
-####c.GitHubOAuthenticator.hosted_domain = os.environ['HOSTED_DOMAIN']
 c.JupyterHub.authenticator_class = 'jhub_remote_user_authenticator.remote_user_auth.RemoteUserAuthenticator'
 
-#c.Spawner.tls_assert_hostname = False
 c.DockerSpawner.tls_verify = False
 
 c.Authenticator.admin_users = whitelist = set()
 c.Authenticator.whitelist = admin = set()
-
-#join = os.path.join
-#here = os.path.dirname(__file__)
-#with open(join(here, 'userList')) as f:
-#    for line in f:
-#        if not line:
-#            continue
-#        parts = line.split()
-#        name = parts[0]
-#        whitelist.add(name)
-#        if len(parts) > 1 and parts[1] == 'admin':
-##            admin.add(name)
