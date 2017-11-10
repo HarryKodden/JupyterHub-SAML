@@ -3,14 +3,12 @@
 
 .DEFAULT_GOAL=build
 
-JUPYTERHUB_VERSION=0.8.0
-DOCKER_NOTEBOOK_IMAGE=jupyter/scipy-notebook
-LOCAL_NOTEBOOK_IMAGE=jupyterhub-user
+include ../.env
 
 notebook_image: Dockerfile
-	docker build -t $(LOCAL_NOTEBOOK_IMAGE) \
-		--build-arg JUPYTERHUB_VERSION=$(JUPYTERHUB_VERSION) \
-		--build-arg DOCKER_NOTEBOOK_IMAGE=$(DOCKER_NOTEBOOK_IMAGE) \
+	docker build -t $(MY_LOCAL_NOTEBOOK_IMAGE) \
+		--build-arg JUPYTERHUB_VERSION=$(MY_JUPYTERHUB_VERSION) \
+		--build-arg DOCKER_NOTEBOOK_IMAGE=$(MY_DOCKER_NOTEBOOK_IMAGE) \
 		.
 
 build: notebook_image

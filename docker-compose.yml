@@ -14,6 +14,7 @@ services:
       - $PWD/etc/letsencrypt:/etc/letsencrypt:ro
       - $PWD/etc/nginx.template:/etc/nginx/nginx.template:ro
       - $PWD/img:/www/data/img:ro
+      - $PWD/www:/www/data/welcome:ro
     restart: always
     command: 'sh -c "cat /etc/nginx/nginx.template | sed \"s/__MY_DOMAIN_NAME__/${MY_HOSTNAME}/\" > /etc/nginx/nginx.conf && nginx -g \"daemon off;\""'
 

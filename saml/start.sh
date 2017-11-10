@@ -10,4 +10,6 @@ cd /etc/shibboleth && ln -sf /run/sp/sp-* .
 
 /etc/init.d/shibd restart
 
+sed -i 's~%%SERVER_NAME%%~'"$SERVER_NAME"'~g' /etc/apache2/sites-enabled/000-default.conf
+
 exec apachectl -DFOREGROUND
