@@ -64,7 +64,7 @@ File: ***metadata.xml***
 <!--
      Author: Harry Kodden
 -->
-<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xml:id="MyData" entityID="https://%%% SERVICE NAME %%%/sp/metadata-1f68bf6b-4f43-41d4-8460-f997a94ca485">
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xml:id="MyData" entityID="https://%%% SERVICE NAME %%%/metadata">
    <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
     <ds:SignedInfo>
       <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
@@ -265,6 +265,20 @@ networks:
 
 Special attenticon for the network specification at the bottom of this file. Especially the "back-end" network is relevant for the juputer interaction between the notebook and the hub. Later we will see that the the network name is specified within the JupyterHub-Configuration file.
 
+The environment variables used in the ***docker-compose.yml*** file can be provided using a ***.env***
+
+This file should contain:
+
+~~~
+MY_HOSTNAME=www.yourdomain.com
+MY_ENTITY_ID=https://%%% SERVICE NAME %%%/metadata
+MY_JUPYTERHUB_VERSION=0.8.0
+MY_DOCKER_NOTEBOOK_IMAGE=jupyter/scipy-notebook
+MY_LOCAL_NOTEBOOK_IMAGE=jupyterhub-user
+~~~
+
+Note: The value of ***MY\_ENTITY\_ID*** must match the value that you have provided in your METADATA at the attribute: ***entityID***
+
 #### Configure NGINX - Reverse Proxy
 
 The NGINX Proxy functions as our single internet connected host. The proxy takes care of SSL-offloading and passing the requests downstream to the other components
@@ -303,39 +317,18 @@ Here is the most relevant part of the file ***etc/nginx.template***
 
 #### Configure SAML (Apache + Shibboleth)
 
+The relevant part in the Apache Configuration takes care of the SAML handling and a value of REMOTE_USER is set after succesful authentication.
+
 ~~~
-<VirtualHost *:80>
-  ServerName http://%%SERVER_NAME%%:80
-  RewriteEngine On
-  RewriteCond %{HTTPS} off
-  RewriteRule ^ https://%{HTTP_HOST}:443%{REQUEST_URI} [R=302,L,QSA]
-</VirtualHost>
-
-<VirtualHost *:443>
-  ServerName https://%%SERVER_NAME%%:443
-
-  RedirectMatch 301 /jupyter/hub/logout https://%%SERVER_NAME%%/saml/Logout?return=https%3A//%%SERVER_NAME%%/jupyter
-
-  ErrorLog ${APACHE_LOG_DIR}/error.log
-  CustomLog ${APACHE_LOG_DIR}/access.log combined
-
-  LogLevel warn
-
-  Header always set Strict-Transport-Security "max-age=63072000; includeSubDomains"
-
-  SSLEngine on
-  SSLProtocol all -SSLv2 -SSLv3
-  SSLCipherSuite EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH
-  SSLHonorCipherOrder on
-
-  SSLCertificateFile /etc/apache2/cert.pem
-  SSLCertificateKeyFile /etc/apache2/privkey.pem
-
   <Location "/saml">
     SetHandler shib
   </Location>
 
-  <Location /jupyter>
+  <Location /jupyter/hub/logout>
+    RedirectMatch 301 .* /saml/Logout?return=/
+  </Location>
+
+  <Location /jupyter/hub>
     AuthType shibboleth
     ShibRequestSetting requireSession 1
     Require valid-user
@@ -353,13 +346,41 @@ Here is the most relevant part of the file ***etc/nginx.template***
 
   ProxyPass /jupyter/hub          http://jupyter:8000/hub
   ProxyPassReverse /jupyter/hub   http://jupyter:8000/hub
+  
+~~~
 
-</VirtualHost>
+### Prepare Jupyter
+
+The Jupyter host is prepared from a standard JupyterHub docker image with added support for DockerSpawner and Remote User Authentication.
+
+The Docker build file looks like:
+
+~~~
+# Copyright (c) Jupyter Development Team.
+# Distributed under the terms of the Modified BSD License.
+ARG JUPYTERHUB_VERSION
+FROM jupyterhub/jupyterhub-onbuild:$JUPYTERHUB_VERSION
+
+# Install dockerspawner, oauth, postgres
+RUN /opt/conda/bin/conda install -yq psycopg2=2.7 && \
+    /opt/conda/bin/conda clean -tipsy && \
+    /opt/conda/bin/pip install --no-cache-dir \
+        jhub_remote_user_authenticator==0.0.* \
+        dockerspawner==0.9.*
+
+~~~
+        
+## Prepare a notebook
+
+The notebook is build by a seperate Makefile and results in a Docker Image with the tag-name ***jupyterhub-user***
+
+Command to (re-)build your notebook
+
+~~~
+cd notebook
+make
 ~~~
 
 
-## Prepare a notebook
-
-xxx
 
 
