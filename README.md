@@ -26,26 +26,26 @@ https://docs.docker.com/compose/install/
 ~~~
 
 ### domain name
-For this demomnstration we like to have an domain name that we can reach on the public internet. If you have a domain name already and you hav control over de the DNS settings of that domain, then the recommendation is to reserve a subdomain and register a A-record to the IP-Address of your Docker VPS/Machine. Make sure that port 443 is open on the firewall.
+For this demonstration we like to have a domainname that we can reach on the public internet. If you have such a domainname already and you do have control over the DNS settings of that domain, then the recommendation is to reserve a subdomain and register a A-record to the IP-Address of your Docker VPS/Machine. Make sure that port 443 is open on the firewall.
 
 ### SAML Preparations
 Here we need several steps.
 
-If you are new to SAML and Federated Authentication, here is some good readings that will you get prepared with the required background information
+If you are new to SAML and Federated Authentication, here is some good readings that will get you prepared with the required background information.
 
 ~~~
 https://wiki.surfnet.nl/display/surfconextdev/Schematic+overview
 ~~~
 
-Our VPS machine will act as a "Service Provider"
-During this demonstration, we make use of surfconext to connect to our "Identity Providers"
+Our VPS machine will act as a "Service Provider".
+During this demonstration, we make use of ***surfconext*** to connect to our "Identity Providers".
 
 In preparation for that we need the following:
 
 #### Service Provider key-set
 
 The following commands will generate a self-signed keyset that is OK for this demonstration.
- 
+
 ~~~
 openssl genrsa -out server.key
 openssl req -new -x509 -key server.key -out server.crt -days 365
@@ -53,9 +53,9 @@ openssl req -new -x509 -key server.key -out server.crt -days 365
 
 #### Service Provide Metadata
 
-Here we need to prepare Metadata that we can pass on to the Identity Provider in order to establish a bilateral "trust-relation" between us.
+We need to prepare Metadata that we can pass on to the Identity Provider in order to establish a bilateral "trust-relation" between us.
 
-This template can be used and adjusted where appropriate
+This template can be used and adjusted where appropriate.
 
 File: ***metadata.xml***
 
@@ -165,10 +165,10 @@ File: ***metadata.xml***
 </md:EntityDescriptor>
 ~~~
 
-Please replace at least these placeholders with the appropriate valeus:
+Please replace at least these placeholders with the appropriate values:
 
 | Placeholder | To be replaced by |
-| ------ | ----------- |
+| --- | --- |
 | %%% DOMAIN %%%   | the full domain name, for example: ***https://www.example.org*** |
 | %%% X509 %%% | output of command ***openssl x509 -in server.crt*** 
 |	|(please remove the lines BEGIN CERTICATE and END CERTIFICATE). |
@@ -177,14 +177,12 @@ Please replace at least these placeholders with the appropriate valeus:
 
 Before this Metadata can be send to the Identity Provider, we need to sign the contents.
 
-This can be achieved from command line by using '***xmlsec1***'
+This can be achieved from command line by using '***xmlsec1***'.
 
 ~~~
 xmlsec1 --sign --output signed_metadata.xml --privkey-pem server.key metadata.xml
 ~~~
 
-
- 
 
 ## Install + configure our hosts
 
@@ -196,7 +194,7 @@ As presented in the diagram earlier, we have 3 host components.
 
 The proxy is connected to the public internet, the others are hosted within our shielded internal network.
 
-The componens are specified in our docker-compose file: ***docker-compose.yml***
+The componens are specified in our docker-compose file: ***docker-compose.yml***.
 
 ~~~
 version: '2'
@@ -263,7 +261,7 @@ networks:
     driver: bridge
 ~~~
 
-Special attenticon for the network specification at the bottom of this file. Especially the "back-end" network is relevant for the juputer interaction between the notebook and the hub. Later we will see that the the network name is specified within the JupyterHub-Configuration file.
+Special attenticon for the network specification at the bottom of this file. The "back-end" network is relevant for the juputer interaction between the notebook and the hub. Later we will see that the the network name is specified within the JupyterHub-Configuration file.
 
 The environment variables used in the ***docker-compose.yml*** file can be provided using a ***.env***
 
@@ -281,7 +279,7 @@ Note: The value of ***MY\_ENTITY\_ID*** must match the value that you have provi
 
 #### Configure NGINX - Reverse Proxy
 
-The NGINX Proxy functions as our single internet connected host. The proxy takes care of SSL-offloading and passing the requests downstream to the other components
+The NGINX Proxy functions as our single internet connected host. The proxy takes care of SSL-offloading and passing the requests downstream to the other components.
 
 The following proxying takes place:
 
@@ -316,6 +314,8 @@ Here is the most relevant part of the file ***etc/nginx.template***
 ~~~
 
 #### Configure SAML (Apache + Shibboleth)
+
+This host is serving a standard Apache2 webserver as well as a Shibboleth Server. Please refer to the ***saml/Dockerfile*** for the details on how this image is build.
 
 The relevant part in the Apache Configuration takes care of the SAML handling and a value of REMOTE_USER is set after succesful authentication.
 
@@ -369,7 +369,32 @@ RUN /opt/conda/bin/conda install -yq psycopg2=2.7 && \
         dockerspawner==0.9.*
 
 ~~~
-        
+
+The Jupyter host acts like a hub. The configuration is specified in ***etc/jupyterhub/jupyterhub_config.py***
+
+Some important details are:
+
+| Variable | Value |
+| --- | --- |
+| DOCKER\_NOTEBOOK\_IMAGE | "jupyterhub-user" |
+| c.JupyterHub.spawner_class | 'dockerspawner.DockerSpawner' |
+| network_name | 'jupyterhubsaml_back-end' |
+
+
+In order to allow volume names in our notebook to be created with some special characters (like '@' in email names), we need to address the proper volume naming plugin.
+
+~~~
+import dockerspawner
+c.DockerSpawner.format_volume_name = dockerspawner.volumenamingstrategy.escaped_format_volume_name
+~~~
+
+Here we instantiate the Remote User authenticator as our JupyterHub authenticator.
+
+~~~
+c.JupyterHub.authenticator_class = 'jhub_remote_user_authenticator.remote_user_auth.RemoteUserAuthenticator'
+~~~
+
+
 ## Prepare a notebook
 
 The notebook is build by a seperate Makefile and results in a Docker Image with the tag-name ***jupyterhub-user***
