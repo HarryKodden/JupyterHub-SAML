@@ -7,7 +7,9 @@ What do we need:
 - docker
 - docker-compose
 - domain name
-- SAML Configuration
+- SAML Preparations
+- install + configure our hosts
+- prepare a notebook
 
 ### docker
 Please make sure you have docker up and running on your system. 
@@ -26,7 +28,7 @@ https://docs.docker.com/compose/install/
 ### domain name
 For this demomnstration we like to have an domain name that we can reach on the public internet. If you have a domain name already and you hav control over de the DNS settings of that domain, then the recommendation is to reserve a subdomain and register a A-record to the IP-Address of your Docker VPS/Machine. Make sure that port 443 is open on the firewall.
 
-### SAML Configuration
+### SAML Preparations
 Here we need several steps.
 
 If you are new to SAML and Federated Authentication, here is some good readings that will you get prepared with the required background information
@@ -168,8 +170,10 @@ Please replace at least these placeholders with the appropriate valeus:
 | Placeholder | To be replaced by |
 | ------ | ----------- |
 | %%% DOMAIN %%%   | the full domain name, for example: ***https://www.example.org*** |
-| %%% X509 %%% | output of command ***openssl x509 -in etc/sp/sp-cert.pem*** 
+| %%% X509 %%% | output of command ***openssl x509 -in server.crt*** 
 |	|(please remove the lines BEGIN CERTICATE and END CERTIFICATE). |
+| %%% SERVICE NAME %%% | The Service Name describing your service |
+
 
 Before this Metadata can be send to the Identity Provider, we need to sign the contents.
 
@@ -182,18 +186,122 @@ xmlsec1 --sign --output signed_metadata.xml --privkey-pem server.key metadata.xm
 
  
 
-## Installation
+## Install + configure our hosts
 
-## Configuration
+As presented in the diagram earlier, we have 3 host components.
 
-### Configure SP
+- proxy
+- saml
+- jupyter
+
+The proxy is connected to the public internet, the others are hosted within our shielded internal network.
+
+The componens are specified in our docker-compose file: ***docker-compose.yml***
+
+~~~
+version: '2'
+services:
+
+  proxy:
+    hostname: ${MY_HOSTNAME}
+    image: nginx:alpine
+    networks:
+      - front-end
+      - back-end
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - $PWD/etc/letsencrypt:/etc/letsencrypt:ro
+      - $PWD/etc/nginx.template:/etc/nginx/nginx.template:ro
+      - $PWD/img:/www/data/img:ro
+    restart: always
+    command: 'sh -c "cat /etc/nginx/nginx.template | sed \"s/__MY_DOMAIN_NAME__/${MY_HOSTNAME}/\" > /etc/nginx/nginx.conf && nginx -g \"daemon off;\""'
+
+  saml:
+    hostname: ${MY_HOSTNAME}
+    build:
+      context: saml
+      dockerfile: Dockerfile
+    networks:
+      - back-end
+    ports:
+      - "443"
+    environment:
+      SERVER_NAME: ${MY_HOSTNAME}
+      SHIBBOLETH_SP_ENTITY_ID: ${MY_ENTITY_ID}
+      SHIBBOLETH_SP_CERT: /run/sp/sp-cert.pem
+      SHIBBOLETH_SP_PRIVKEY: /run/sp/sp-key.pem
+      SHIBBOLETH_SP_METADATA_PROVIDER_XML_FILE: /run/sp/sp-metadata-myvelocity.xml
+    volumes:
+      - $PWD/etc/sp:/run/sp:ro
+      - $PWD/etc/sp/myvelocity-shibboleth2.xml:/etc/shibboleth/shibboleth2.xml:ro
+      - $PWD/etc/sp/attribute-map.xml:/etc/shibboleth/attribute-map.xml:ro
+      - $PWD/etc/letsencrypt:/etc/letsencrypt:ro
+      - $PWD/etc/idp/surfconext.test/certificate.pem:/opt/shibboleth-sp/etc/shibboleth/surfconext.pem:ro
+
+  jupyter:
+    build:
+      context: $PWD/jupyterhub
+      dockerfile: Dockerfile.jupyterhub
+      args:
+        - JUPYTERHUB_VERSION=${MY_JUPYTERHUB_VERSION}
+    networks:
+      - back-end
+    ports:
+      - "8000"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:rw"
+      - $PWD/etc/jupyterhub:/srv/jupyterhub
+      - $PWD/var/jupyter:/volumes/jupyter
+    command: jupyterhub
+
+networks:
+  front-end:
+    driver: bridge
+  back-end:
+    driver: bridge
+~~~
+
+Special attenticon for the network specification at the bottom of this file. Especially the "back-end" network is relevant for the juputer interaction between the notebook and the hub. Later we will see that the the network name is specified within the JupyterHub-Configuration file.
 
 #### Configure NGINX - Reverse Proxy
 
+The NGINX Proxy functions as our single internet connected host. The proxy takes care of SSL-offloading and passing the requests downstream to the other components
+
+The following proxying takes place:
+
+- static contents like images are served directly.
+- all requests to ***/jupyter*** and ***/hub*** and forwarded to be handled by the SAML host. The SAML host enforces authenticated session before additional services can be offered to the user.
+- all request to ***/user*** are passed on to the Jupyter host. This host will forward request to the appropriate runnint ***notebook*** but only if there is an active valid session for the user.
+- Jupyter User Notebooks requests are directly passed onto the JupyterHUB and may bypass the SAML host.
+- All ***/saml*** requests are forwarded ot the SAML host.
+
+Here is the most relevant part of the file ***etc/nginx.template***
+
 ~~~
+    location /img {
+      root /www/data;
+    }
+
+    location /jupyter {
+      proxy_pass         https://saml/jupyter;
+    }
+
+    location /hub {
+      proxy_pass         https://saml/jupyter/hub;
+    }
+
+    location /user {
+      proxy_pass         http://jupyter:8000/user;
+    }
+
+    location /saml {
+      proxy_pass         https://saml/saml;
+    }
 ~~~
 
-#### Configure Apache + Shibboleth
+#### Configure SAML (Apache + Shibboleth)
 
 ~~~
 <VirtualHost *:80>
@@ -250,7 +358,8 @@ xmlsec1 --sign --output signed_metadata.xml --privkey-pem server.key metadata.xm
 ~~~
 
 
-### Prepare Notebook image
+## Prepare a notebook
 
+xxx
 
 
