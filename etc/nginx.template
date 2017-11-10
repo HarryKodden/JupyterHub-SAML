@@ -51,6 +51,10 @@ http {
       root /www/data;
     }
 
+    location / {
+      root /www/data/welcome;
+    }
+
     location /jupyter {
       proxy_pass         https://saml/jupyter;
     }
